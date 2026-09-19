@@ -1,5 +1,7 @@
 # Taccuino
 
+**Versione 0.0**
+
 Un programma per tenere insieme **clienti**, **incarichi** e **note** del lavoro da consulente.
 Gira solo sul tuo Mac: niente internet, niente account, nessun dato che esce da qui.
 
