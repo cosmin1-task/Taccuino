@@ -4,9 +4,10 @@
 cd "$(dirname "$0")" || exit 1
 clear
 
-# Cerco Node in tutti i posti dove di solito si installa su macOS.
+# Cerco Node: prima quello incluso nella cartella, poi quelli installati nel Mac.
 NODE=""
-for candidato in "$(command -v node 2>/dev/null)" \
+for candidato in "./.node-mac/bin/node" \
+                 "$(command -v node 2>/dev/null)" \
                  /opt/homebrew/bin/node \
                  /usr/local/bin/node \
                  "$HOME/.nvm/versions/node/"*/bin/node ; do
@@ -26,6 +27,13 @@ if [ -z "$NODE" ]; then
   echo "  Premi Invio per chiudere."
   read -r
   exit 1
+fi
+
+# macOS mette in quarantena i file scaricati: la tolgo al motore incluso,
+# altrimenti si rifiuta di partire. Serve solo la prima volta.
+if [ "$NODE" = "./.node-mac/bin/node" ]; then
+  xattr -d com.apple.quarantine "$NODE" 2>/dev/null
+  xattr -dr com.apple.quarantine "./.node-mac" 2>/dev/null
 fi
 
 # Apro il browser un attimo dopo, cosi' il programma ha il tempo di partire.
