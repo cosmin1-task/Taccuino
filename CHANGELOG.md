@@ -2,6 +2,33 @@
 
 Ogni versione del Taccuino, dalla piu' recente alla piu' vecchia.
 
+## 0.2 - 21 settembre 2026
+
+Il Taccuino gira anche su Windows.
+
+**Aggiunto**
+
+- `Avvia Taccuino.bat`: l'equivalente per Windows del file di avvio,
+  con la stessa ricerca di Node e lo stesso messaggio se manca.
+- Il file per Windows spiega anche la strada senza installazione: il
+  pacchetto .zip di Node estratto in una cartella `node-win`, utile su un
+  computer aziendale che non concede i permessi di amministratore.
+- Istruzioni nel README per portare il progetto su un altro computer,
+  con l'avvertenza che i dati dei due computer restano separati.
+
+**Cambiato**
+
+- L'apertura del browser e' passata dai file di avvio dentro `server.js`:
+  ora e' scritta una volta sola e vale per macOS, Windows e Linux, invece
+  di essere ripetuta in ogni file di avvio.
+
+**Corretto**
+
+- Se il comando per aprire il browser non esiste, il programma non muore
+  piu'. Il `try/catch` che avrebbe dovuto proteggerlo era inutile: `spawn`
+  segnala quel tipo di errore in un secondo momento, con un evento, e non
+  al momento della chiamata. Ora quell'evento viene ascoltato.
+
 ## 0.1 - 21 settembre 2026
 
 Gli incarichi hanno un'urgenza, e l'urgenza sale da sola col tempo.

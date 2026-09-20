@@ -255,14 +255,37 @@ server.on('error', (err) => {
   throw err;
 });
 
-// Ascolta solo su 127.0.0.1: raggiungibile da questo Mac, da nessun altro.
+/* Apre il browser sulla pagina del Taccuino.
+   Ogni sistema ha il suo comando: prima stava nei file di avvio, ma cosi'
+   c'e' un posto solo da sistemare invece di uno per sistema.
+   Se qualcosa va storto non importa: l'indirizzo e' comunque stampato sotto. */
+function apriBrowser(indirizzo) {
+  if (process.env.TACCUINO_NIENTE_BROWSER) return;
+  const { spawn } = require('child_process');
+  let comando, argomenti;
+  if (process.platform === 'darwin') { comando = 'open'; argomenti = [indirizzo]; }
+  else if (process.platform === 'win32') { comando = 'cmd'; argomenti = ['/c', 'start', '', indirizzo]; }
+  else { comando = 'xdg-open'; argomenti = [indirizzo]; }
+  try {
+    const processo = spawn(comando, argomenti, { detached: true, stdio: 'ignore' });
+    // ATTENZIONE: se il comando non esiste, spawn NON lancia un errore subito.
+    // Lo segnala dopo, con un evento: senza questo ascoltatore l'errore
+    // resterebbe senza gestore e farebbe morire tutto il programma.
+    processo.on('error', () => {});
+    processo.unref();
+  } catch (err) { /* pazienza, l'indirizzo e' scritto qui sotto */ }
+}
+
+// Ascolta solo su 127.0.0.1: raggiungibile da questo computer, da nessun altro.
 server.listen(PORTA, '127.0.0.1', () => {
   if (!fs.existsSync(FILE_DATI)) scriviDati(JSON.parse(JSON.stringify(VUOTO)));
   console.log('');
+  const indirizzo = 'http://localhost:' + PORTA;
   console.log('  Taccuino e\' attivo.');
-  console.log('  Aprilo qui:  http://localhost:' + PORTA);
+  console.log('  Aprilo qui:  ' + indirizzo);
   console.log('');
   console.log('  I tuoi dati sono nel file dati.json, in questa cartella.');
   console.log('  Per chiudere: premi Ctrl+C, oppure chiudi questa finestra.');
   console.log('');
+  apriBrowser(indirizzo);
 });

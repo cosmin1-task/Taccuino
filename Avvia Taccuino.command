@@ -36,9 +36,7 @@ if [ "$NODE" = "./.node-mac/bin/node" ]; then
   xattr -dr com.apple.quarantine "./.node-mac" 2>/dev/null
 fi
 
-# Apro il browser un attimo dopo, cosi' il programma ha il tempo di partire.
-( sleep 1.5 ; open "http://localhost:4321" ) &
-
+# Il browser lo apre il programma stesso, appena e' pronto.
 "$NODE" server.js
 
 echo ""

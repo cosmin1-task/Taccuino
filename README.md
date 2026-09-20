@@ -1,13 +1,15 @@
 # Taccuino
 
-**Versione 0.1**
+**Versione 0.2**
 
 Un programma per tenere insieme **clienti**, **incarichi** e **note** del lavoro da consulente.
-Gira solo sul tuo Mac: niente internet, niente account, nessun dato che esce da qui.
+Gira solo sul tuo computer: niente internet, niente account, nessun dato che esce da qui.
+Funziona su macOS, Windows e Linux.
 
 ## Come si avvia
 
-Doppio clic su **`Avvia Taccuino.command`**.
+Su Mac: doppio clic su **`Avvia Taccuino.command`**.
+Su Windows: doppio clic su **`Avvia Taccuino.bat`**.
 
 Si apre una finestra del Terminale (quella nera) e subito dopo il browser
 all'indirizzo `http://localhost:4321`.
@@ -21,6 +23,48 @@ Per chiudere tutto: chiudi la finestra nera, oppure premi `Ctrl+C` dentro di ess
 > proviene da uno sviluppatore non identificato". In quel caso: clic destro sul
 > file, poi **Apri**, poi **Apri** di nuovo nella finestra che compare.
 > Succede una volta sola.
+
+## Portarlo su un altro computer
+
+Il modo pulito e' scaricarlo da GitHub con GitHub Desktop: apri il programma
+sull'altro computer, accedi al tuo account e scegli il repository Taccuino.
+Cosi' i due computer restano allineati sul codice, e quando arriva una
+versione nuova basta premere un bottone.
+
+In alternativa va bene anche copiare la cartella su una chiavetta, ma
+**senza** le cartelle `.node-mac` o `node-win`: sono il motore compilato per
+un sistema preciso e su un altro computer non funzionano.
+
+### Su Windows
+
+Serve Node.js. Due strade:
+
+- **Se puoi installare programmi**: scarica la versione LTS da `nodejs.org`
+  e installala. Il file `Avvia Taccuino.bat` la trovera' da solo.
+- **Se il computer e' aziendale e non ti lascia installare nulla**: dalla
+  stessa pagina scarica il pacchetto **.zip** per Windows invece
+  dell'installer. Estrailo, rinomina la cartella che ne esce in `node-win`
+  e mettila dentro la cartella Taccuino. Non serve installare niente e non
+  serve la password di amministratore.
+
+### I dati NON si sincronizzano
+
+Ogni computer ha il suo `dati.json`. Quello che scrivi in ufficio non compare
+a casa, e viceversa: sono due taccuini separati che portano lo stesso nome.
+
+Non e' una dimenticanza, e' come e' fatto il programma in questa versione.
+Se ti serve la stessa lista su piu' computer, va ripensata quella scelta —
+non risolto con una copia manuale del file, che dopo due settimane ti lascia
+con due versioni diverse e nessuna certezza su quale sia quella buona.
+
+### Prima di metterlo su un computer aziendale
+
+Due domande da farsi, e non sono informatiche:
+
+1. La policy aziendale ti permette di installare programmi e far girare un
+   server locale?
+2. Nel Taccuino finiranno nomi di clienti e note sul loro lavoro. Se quel
+   computer appartiene a qualcun altro, quei dati ci possono stare?
 
 ## Come si usa
 
@@ -90,7 +134,8 @@ anche se un domani metti il codice online.
       public/livelli.js    il calcolo dei livelli di urgenza
       prove/               i controlli automatici
       dati.json            i tuoi dati
-      Avvia Taccuino.command  il file da cliccare
+      Avvia Taccuino.command  il file da cliccare su Mac
+      Avvia Taccuino.bat      il file da cliccare su Windows
 
 Nessuna libreria esterna, nessun `npm install`. Serve solo Node.js installato.
 
@@ -106,7 +151,9 @@ Nessuna libreria esterna, nessun `npm install`. Serve solo Node.js installato.
 
 Nella cartella `prove/` ci sono i controlli automatici. Per eseguirli:
 
-    ./.node-mac/bin/node prove/livelli.prova.js
+    node prove/livelli.prova.js
+
+(sul tuo Mac, dove Node sta nella cartella: `./.node-mac/bin/node prove/livelli.prova.js`)
 
 Controllano che un incarico salga di livello al giorno giusto, che quelli
 fatti non salgano, e che date strane o livelli inesistenti non rompano nulla.

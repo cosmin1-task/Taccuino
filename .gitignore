@@ -3,3 +3,4 @@ dati.backup.json
 .DS_Store
 node_modules/
 .node-mac/
+node-win/
