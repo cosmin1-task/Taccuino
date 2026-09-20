@@ -37,7 +37,9 @@
     <form id="form-incarico" class="riquadro aggiunta">
       <input name="titolo" placeholder="Cosa devi fare?" required maxlength="300" class="campo-largo">
       <select name="clienteId" class="campo-cliente"><option value="">— nessun cliente —</option></select>
-      <input name="scadenza" type="date" title="Scadenza (facoltativa)">
+      <select name="livello" class="campo-livello" title="Quanto e' urgente"></select>
+      <label class="campo-data" title="Da quando contano i giorni. Vuoto = oggi">Da <input name="dataInizio" type="date"></label>
+      <label class="campo-data" title="Entro quando va fatto. Facoltativa">Entro <input name="scadenza" type="date"></label>
       <button type="submit" class="bottone-primario">Aggiungi</button>
     </form>
 
@@ -47,6 +49,7 @@
       <button class="filtro" data-stato="in corso">In corso</button>
       <button class="filtro" data-stato="fatto">Fatti</button>
       <button class="filtro" data-stato="tutti">Tutti</button>
+      <button class="filtro filtro-urgenti" data-stato="urgenti">Solo urgenti</button>
     </div>
 
     <div id="elenco-incarichi"></div>
@@ -79,6 +82,7 @@
 
 <div id="avviso" class="avviso" hidden></div>
 
+<script src="livelli.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

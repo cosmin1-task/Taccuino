@@ -150,6 +150,28 @@ function opzioniIncarichi(selezionato) {
   return html;
 }
 
+function opzioniLivelli(selezionato) {
+  return LIVELLI.map((l) => '<option value="' + l.chiave + '"'
+    + (l.chiave === selezionato ? ' selected' : '') + '>' + esc(l.nome) + '</option>').join('');
+}
+
+// La pillola colorata con il livello, piu' la spiegazione di come ci e' arrivato.
+function pillolaLivello(inc) {
+  const liv = livelloEffettivo(inc);
+  const nome = LIVELLI[liv.indice].nome;
+  let titolo = '';
+  if (liv.nonIniziato) titolo = 'Inizia il ' + dataLeggibile(inc.dataInizio);
+  else if (liv.salito > 0) titolo = 'Era "' + LIVELLI[liv.base].nome + '", salita dopo ' + liv.giorni + ' giorni';
+  else {
+    const mancano = giorniAlProssimoScatto(inc);
+    if (mancano !== null) titolo = 'Fra ' + mancano + (mancano === 1 ? ' giorno sale' : ' giorni sale')
+      + ' a "' + LIVELLI[liv.indice + 1].nome + '"';
+  }
+  return '<span class="pillola livello liv-' + LIVELLI[liv.indice].chiave + '"'
+    + (titolo ? ' title="' + esc(titolo) + '"' : '') + '>'
+    + esc(nome) + (liv.salito > 0 ? ' \u2191' : '') + '</span>';
+}
+
 function inModifica(tipo, id) {
   return stato.modifica && stato.modifica.tipo === tipo && stato.modifica.id === id;
 }
@@ -165,6 +187,9 @@ function bottoniSalvataggio(tipo, id) {
 
 function ordinaIncarichi(elenco) {
   return elenco.slice().sort((a, b) => {
+    // Il livello piu' alto viene prima; a parita' decide la scadenza.
+    const la = livelloEffettivo(a).indice, lb = livelloEffettivo(b).indice;
+    if (la !== lb) return lb - la;
     if (a.scadenza && b.scadenza) return a.scadenza.localeCompare(b.scadenza);
     if (a.scadenza) return -1;
     if (b.scadenza) return 1;
@@ -178,7 +203,11 @@ function schedaIncarico(inc, termine) {
       + '<input class="modifica-area" data-campo="titolo" value="' + esc(inc.titolo) + '" maxlength="300">'
       + '<div class="riga-nota" style="margin-top:8px">'
       +   '<select class="stato-scelta" data-campo="clienteId" style="flex:1">' + opzioniClienti(inc.clienteId) + '</select>'
-      +   '<input class="stato-scelta" type="date" data-campo="scadenza" value="' + esc(inc.scadenza) + '">'
+      +   '<label class="campo-data">Entro <input class="stato-scelta" type="date" data-campo="scadenza" value="' + esc(inc.scadenza) + '"></label>'
+      + '</div>'
+      + '<div class="riga-nota" style="margin-top:8px">'
+      +   '<select class="stato-scelta" data-campo="livello" style="flex:1">' + opzioniLivelli(inc.livello) + '</select>'
+      +   '<label class="campo-data">Da <input class="stato-scelta" type="date" data-campo="dataInizio" value="' + esc(inc.dataInizio || '') + '"></label>'
       + '</div>'
       + '<textarea class="modifica-area" data-campo="note" rows="3" placeholder="Note su questo incarico...">' + esc(inc.note) + '</textarea>'
       + bottoniSalvataggio('incarichi', inc.id)
@@ -188,7 +217,7 @@ function schedaIncarico(inc, termine) {
   const scad = scadenzaTesto(inc.scadenza);
   const cliente = nomeCliente(inc.clienteId);
 
-  let meta = '';
+  let meta = pillolaLivello(inc);
   if (cliente) meta += '<span class="pillola cliente">' + evidenzia(cliente, termine) + '</span>';
   if (scad) meta += '<span class="pillola' + (scad.scaduto && inc.stato !== 'fatto' ? ' scaduto' : '') + '">' + esc(scad.testo) + '</span>';
 
@@ -196,7 +225,9 @@ function schedaIncarico(inc, termine) {
   for (const s of STATI) sceltaStato += '<option value="' + s + '"' + (s === inc.stato ? ' selected' : '') + '>' + s + '</option>';
   sceltaStato += '</select>';
 
-  return '<div class="elemento' + (inc.stato === 'fatto' ? ' fatto' : '') + '" data-id="' + inc.id + '">'
+  const chiaveLiv = LIVELLI[livelloEffettivo(inc).indice].chiave;
+
+  return '<div class="elemento bordo-' + chiaveLiv + (inc.stato === 'fatto' ? ' fatto' : '') + '" data-id="' + inc.id + '">'
     + '<div class="riga-elemento">'
     +   sceltaStato
     +   '<div style="flex:1;min-width:0">'
@@ -210,6 +241,17 @@ function schedaIncarico(inc, termine) {
 }
 
 function disegnaIncarichi() {
+  // "Solo urgenti": quello che oggi e' salito a "Da fare presto" o oltre,
+  // in un elenco unico ordinato, senza separare per stato.
+  if (stato.filtroStato === 'urgenti') {
+    const caldi = ordinaIncarichi(stato.dati.incarichi.filter((i) =>
+      i.stato !== 'fatto' && livelloEffettivo(i).indice >= 2));
+    $('#elenco-incarichi').innerHTML = caldi.length
+      ? caldi.map((i) => schedaIncarico(i, '')).join('')
+      : '<div class="vuoto">Niente di urgente adesso.<br>Goditela.</div>';
+    return;
+  }
+
   let daMostrare;
   if (stato.filtroStato === 'tutti') daMostrare = STATI;
   else if (stato.filtroStato === 'aperti') daMostrare = ['in corso', 'da fare'];
@@ -369,6 +411,8 @@ function disegna() {
   if (selClienteNota) selClienteNota.innerHTML = opzioniClienti(selClienteNota.value);
   const selIncaricoNota = document.querySelector('#form-nota select[name=incaricoId]');
   if (selIncaricoNota) selIncaricoNota.innerHTML = opzioniIncarichi(selIncaricoNota.value);
+  const selLivello = document.querySelector('#form-incarico select[name=livello]');
+  if (selLivello && !selLivello.options.length) selLivello.innerHTML = opzioniLivelli(LIVELLO_PREDEFINITO);
 
   if (cercando) disegnaRicerca();
   else if (stato.vista === 'incarichi') disegnaIncarichi();
@@ -431,10 +475,13 @@ $('#form-incarico').addEventListener('submit', (e) => {
     titolo: titolo,
     clienteId: modulo.clienteId.value,
     scadenza: modulo.scadenza.value,
+    livello: modulo.livello.value,
+    dataInizio: modulo.dataInizio.value || oggiIso(),
     stato: 'da fare',
   });
   modulo.titolo.value = '';
   modulo.scadenza.value = '';
+  modulo.dataInizio.value = '';
   modulo.titolo.focus();
 });
 
@@ -517,6 +564,16 @@ document.addEventListener('click', (e) => {
 document.addEventListener('change', (e) => {
   if (e.target.dataset.azione === 'stato') {
     modifica('incarichi', e.target.dataset.id, { stato: e.target.value });
+    return;
+  }
+
+  // Se dentro il modulo di modifica sposti il livello, la data di inizio
+  // torna a oggi: il conteggio dei giorni riparte. Lo faccio qui, a vista,
+  // cosi' se non e' quello che volevi puoi correggere la data prima di salvare.
+  if (e.target.dataset.campo === 'livello') {
+    const scheda = e.target.closest('.elemento');
+    const campoData = scheda && scheda.querySelector('[data-campo="dataInizio"]');
+    if (campoData) campoData.value = oggiIso();
   }
 });
 

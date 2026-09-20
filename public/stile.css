@@ -238,3 +238,60 @@ mark { background: #ffe9a8; color: inherit; border-radius: 3px; padding: 0 2px; 
   .campo-cliente { max-width: none; flex: 1; }
   .bottone-primario { width: 100%; margin-left: 0; }
 }
+
+/* ---------- livelli di urgenza ---------- */
+
+/* Il rosso resta alla scadenza superata: l'urgenza massima usa il viola,
+   cosi' guardando una scheda si capisce sempre quale dei due segnali e'. */
+:root {
+  --liv-aspettare: #8c877f;
+  --liv-pianificare: #2f8a63;
+  --liv-presto: #c77320;
+  --liv-subito: #8b3fb0;
+  --liv-aspettare-tenue: #eeece8;
+  --liv-pianificare-tenue: #e3f1ea;
+  --liv-presto-tenue: #fbeedd;
+  --liv-subito-tenue: #f2e7f7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --liv-aspettare: #a8a29a;
+    --liv-pianificare: #5fb98d;
+    --liv-presto: #e8a35c;
+    --liv-subito: #c081dd;
+    --liv-aspettare-tenue: #2c2f33;
+    --liv-pianificare-tenue: #1f342a;
+    --liv-presto-tenue: #382a1c;
+    --liv-subito-tenue: #322338;
+  }
+}
+
+.elemento[class*="bordo-"] { border-left-width: 4px; border-left-style: solid; }
+.bordo-aspettare { border-left-color: var(--liv-aspettare); }
+.bordo-pianificare { border-left-color: var(--liv-pianificare); }
+.bordo-presto { border-left-color: var(--liv-presto); }
+.bordo-subito { border-left-color: var(--liv-subito); }
+
+.elemento.fatto[class*="bordo-"] { border-left-color: var(--bordo); }
+
+.pillola.livello { cursor: help; }
+.pillola.liv-aspettare { background: var(--liv-aspettare-tenue); color: var(--liv-aspettare); }
+.pillola.liv-pianificare { background: var(--liv-pianificare-tenue); color: var(--liv-pianificare); }
+.pillola.liv-presto { background: var(--liv-presto-tenue); color: var(--liv-presto); }
+.pillola.liv-subito { background: var(--liv-subito-tenue); color: var(--liv-subito); font-weight: 650; }
+
+.campo-livello { max-width: 165px; }
+.filtro-urgenti.attivo { background: var(--liv-presto-tenue); color: var(--liv-presto); }
+
+/* Le due caselle data vanno distinte a colpo d'occhio: "Da" e' l'inizio
+   del conteggio, "Entro" e' la scadenza. */
+.campo-data {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--testo-tenue); white-space: nowrap;
+}
+.campo-data input { font-size: 13px; }
+.aggiunta .campo-data input {
+  border: 1px solid var(--bordo); border-radius: 7px;
+  padding: 7px 8px; background: var(--sfondo); color: var(--testo); font-family: inherit;
+}

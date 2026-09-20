@@ -2,6 +2,40 @@
 
 Ogni versione del Taccuino, dalla piu' recente alla piu' vecchia.
 
+## 0.1 - 21 settembre 2026
+
+Gli incarichi hanno un'urgenza, e l'urgenza sale da sola col tempo.
+
+**Aggiunto**
+
+- Quattro livelli di urgenza: Puo' aspettare, Da pianificare, Da fare presto,
+  Subito. Colorano il bordo sinistro della scheda (grigio, verde, arancione,
+  viola) e compaiono come etichetta.
+- Invecchiamento automatico: 14 giorni da "Puo' aspettare", 7 da
+  "Da pianificare", 3 da "Da fare presto". Chi e' salito da solo porta una
+  freccia, e il dettaglio si legge passandoci sopra col mouse.
+- Campo "Da": la data da cui contano i giorni, distinta dalla scadenza.
+  Puo' essere nel futuro, e in quel caso l'incarico non invecchia finche'
+  non arriva quel giorno.
+- Spostare il livello a mano fa ripartire il conteggio da oggi, cosi' si puo'
+  davvero rimandare qualcosa. La data si aggiorna a vista nel modulo.
+- Gli incarichi si ordinano per urgenza; a parita' di livello decide la scadenza.
+- Filtro "Solo urgenti": tutto cio' che oggi e' a "Da fare presto" o oltre.
+- Le due caselle data hanno un'etichetta ("Da" e "Entro"): prima erano
+  indistinguibili.
+- Cartella `prove/` con i controlli automatici sul calcolo dei livelli.
+
+**Scelte tecniche**
+
+- Il livello attuale non viene salvato: si salvano livello di partenza e data,
+  e il resto si calcola al momento. Nessun timer, nessun processo da tenere
+  acceso, e il conto resta giusto anche dopo mesi di programma chiuso.
+- Il rosso resta riservato alle scadenze superate; l'urgenza massima usa il
+  viola, cosi' i due segnali non si confondono.
+- I dati della versione 0.0 continuano a funzionare: a un incarico senza
+  livello viene assegnato "Da pianificare", e come data di inizio la sua
+  data di creazione.
+
 ## 0.0 - 19 settembre 2026
 
 La prima versione funzionante.

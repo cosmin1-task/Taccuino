@@ -22,6 +22,18 @@ function leggiDati() {
     const testo = fs.readFileSync(FILE_DATI, 'utf8');
     const dati = JSON.parse(testo);
     for (const c of COLLEZIONI) if (!Array.isArray(dati[c])) dati[c] = [];
+
+    // Gli incarichi creati con la versione 0.0 non hanno livello ne' data di
+    // inizio. Glieli do qui, cosi' il resto del programma non deve mai
+    // preoccuparsi di campi mancanti.
+    for (const inc of dati.incarichi) {
+      if (!LIVELLI.includes(inc.livello)) inc.livello = LIVELLO_PREDEFINITO;
+      if (!E_UNA_DATA(inc.dataInizio)) {
+        inc.dataInizio = E_UNA_DATA((inc.creato || '').slice(0, 10))
+          ? inc.creato.slice(0, 10) : oggiIso();
+      }
+    }
+
     return dati;
   } catch (err) {
     if (err.code === 'ENOENT') return JSON.parse(JSON.stringify(VUOTO));
@@ -51,6 +63,19 @@ function nuovoId() {
 
 const STATI = ['da fare', 'in corso', 'fatto'];
 
+// Le chiavi dei livelli di urgenza. La logica di come salgono sta in
+// public/livelli.js: qui serve solo sapere quali valori sono accettabili.
+const LIVELLI = ['aspettare', 'pianificare', 'presto', 'subito'];
+const LIVELLO_PREDEFINITO = 'pianificare';
+
+const E_UNA_DATA = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+
+function oggiIso() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+         + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 function testo(valore, max) {
   if (typeof valore !== 'string') return '';
   return valore.trim().slice(0, max);
@@ -74,7 +99,11 @@ function normalizza(tipo, corpo, precedente) {
       titolo: testo(corpo.titolo, 300),
       clienteId: testo(corpo.clienteId, 100),
       stato: stato,
-      scadenza: /^\d{4}-\d{2}-\d{2}$/.test(corpo.scadenza || '') ? corpo.scadenza : '',
+      livello: LIVELLI.includes(corpo.livello) ? corpo.livello
+               : (vecchio.livello || LIVELLO_PREDEFINITO),
+      dataInizio: E_UNA_DATA(corpo.dataInizio) ? corpo.dataInizio
+                  : (vecchio.dataInizio || oggiIso()),
+      scadenza: E_UNA_DATA(corpo.scadenza) ? corpo.scadenza : '',
       note: testo(corpo.note, 10000),
       creato: vecchio.creato || new Date().toISOString(),
       aggiornato: new Date().toISOString(),
@@ -178,6 +207,16 @@ const server = http.createServer(async (req, res) => {
       const indice = dati[tipo].findIndex((e) => e.id === id);
       if (indice === -1) return rispondiJson(res, 404, { errore: 'Non trovato' });
       const corpo = await leggiCorpo(req);
+
+      // Se sposti il livello a mano e non tocchi la data di inizio, il
+      // conteggio dei giorni riparte da oggi: e' il modo per rimandare
+      // davvero qualcosa, invece di vederla risalire subito.
+      if (tipo === 'incarichi' && corpo.livello
+          && corpo.livello !== dati[tipo][indice].livello
+          && corpo.dataInizio === undefined) {
+        corpo.dataInizio = oggiIso();
+      }
+
       const unito = Object.assign({}, dati[tipo][indice], corpo);
       dati[tipo][indice] = normalizza(tipo, unito, dati[tipo][indice]);
       scriviDati(dati);
