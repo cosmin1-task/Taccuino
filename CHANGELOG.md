@@ -2,6 +2,52 @@
 
 Ogni versione del Taccuino, dalla piu' recente alla piu' vecchia.
 
+## 0.3 - 3 ottobre 2026
+
+Il Taccuino sull'iPhone.
+
+**Aggiunto**
+
+- Si installa sulla schermata Home dell'iPhone da
+  https://cosmin1-task.github.io/Taccuino/ e si apre a tutto schermo, con
+  la sua icona.
+- Sull'iPhone i dati stanno nella memoria del telefono e non escono da li'.
+  Nessun server: le stesse regole del computer girano dentro la pagina.
+- Funziona senza rete: la pagina resta salvata nel telefono.
+- Scheda *Copia di sicurezza*, sul telefono e sul computer: *Salva una copia*
+  (sull'iPhone apre il foglio di condivisione, per salvarla in iCloud Drive)
+  e *Carica una copia*. Una copia sbagliata viene rifiutata senza toccare niente.
+- Il `dati.json` del computer si carica sull'iPhone cosi' com'e', anche
+  delle versioni vecchie.
+- Promemoria in cima alla pagina se sul telefono non c'e' una copia da piu'
+  di 30 giorni.
+- Aperto in Safari invece che dalla Home, la pagina spiega come installarlo.
+- A ogni push su GitHub la nuova versione va online da sola (GitHub Pages).
+
+**Cambiato**
+
+- Sul telefono le schede sono una barra in basso; i campi sono abbastanza
+  grandi da non far ingrandire la pagina quando li tocchi; Modifica ed
+  Elimina stanno sotto ogni scheda, grandi; i filtri scorrono di lato.
+- Quando l'app torna in primo piano la lista si ridisegna, cosi' gli
+  incarichi salgono di livello anche se era rimasta aperta da ieri.
+- Un cliente senza nome, un incarico senza titolo o una nota vuota vengono
+  rifiutati anche dal programma, non solo dalla pagina.
+- Il repository su GitHub e' pubblico. I dati non ci sono mai stati.
+
+**Scelte tecniche**
+
+- Le regole su come cambiano i dati sono passate da `server.js` a
+  `public/archivio.js`, che usano sia il server del computer sia la pagina
+  sull'iPhone. Un posto solo, e nuove prove in `prove/archivio.prova.js`.
+- Sull'iPhone l'archivio sta in IndexedDB, con la versione precedente
+  accanto, e si chiede al telefono di non cancellarlo mai per fare spazio.
+- Il service worker prende la pagina dalla rete quando c'e' e dalla copia
+  quando manca: gli aggiornamenti arrivano senza dover reinstallare.
+- GitHub Pages pubblica il repository cosi' com'e': una pagina all'indirizzo
+  principale porta a `public/`, dove sta l'app. `dati.json` non e' nel
+  repository, quindi non e' online.
+
 ## 0.2 - 21 settembre 2026
 
 Il Taccuino gira anche su Windows.

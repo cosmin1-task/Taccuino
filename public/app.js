@@ -1,10 +1,26 @@
 /* Taccuino - logica dell'interfaccia.
-   Tutto gira nel browser; i dati vengono letti e scritti dal server locale. */
+   Tutto gira nel browser. Le regole su come cambiano i dati stanno in
+   archivio.js, il calcolo dell'urgenza in livelli.js: qui si disegna e si
+   ascoltano i clic.
+
+   Due modi di funzionare, con la stessa pagina:
+   - sul computer la pagina parla con server.js, che tiene dati.json;
+   - sull'iPhone non c'e' server: l'archivio sta nella memoria del telefono
+     e le stesse regole girano qui dentro. */
+
+// Sul computer la pagina arriva da localhost; da qualunque altro indirizzo
+// (il sito da cui la installi sull'iPhone) gira da sola.
+// "?telefono" nell'indirizzo forza il modo telefono anche sul computer, per provarlo.
+const SUL_TELEFONO = new URLSearchParams(location.search).has('telefono')
+  || !['localhost', '127.0.0.1'].includes(location.hostname);
+
+// Dopo quanti giorni senza copia di sicurezza il telefono te lo ricorda.
+const GIORNI_PROMEMORIA = 30;
 
 // ---------------------------------------------------------------- stato
 
 const stato = {
-  dati: { clienti: [], incarichi: [], note: [] },
+  dati: { clienti: [], incarichi: [], note: [], impostazioni: { ultimaCopia: null } },
   vista: 'incarichi',
   filtroStato: 'aperti',
   ricerca: '',
@@ -61,9 +77,10 @@ function titoloIncarico(id) {
   return i ? i.titolo : '';
 }
 
-function avvisa(messaggio) {
+function avvisa(messaggio, buono) {
   const box = $('#avviso');
   box.textContent = messaggio;
+  box.classList.toggle('buono', !!buono);
   box.hidden = false;
   clearTimeout(avvisa.timer);
   avvisa.timer = setTimeout(() => { box.hidden = true; }, 5000);
@@ -77,9 +94,36 @@ function segnalaSalvataggio() {
   segnalaSalvataggio.timer = setTimeout(() => el.classList.remove('visibile'), 1400);
 }
 
-// ---------------------------------------------------------------- server
+// ---------------------------------------------------------------- server (o telefono)
+
+/* Sul telefono l'archivio si tiene anche in memoria, e le richieste si
+   mettono in fila: due tocchi veloci non devono salvare uno sopra l'altro. */
+let archivioTelefono = null;
+let codaTelefono = Promise.resolve();
+
+function chiamaTelefono(metodo, percorso, corpo) {
+  const lavoro = codaTelefono.then(async () => {
+    if (!archivioTelefono) archivioTelefono = Archivio.sistema((await Memoria.carica()) || Archivio.vuoto());
+    const esito = Archivio.rispondi(archivioTelefono, metodo, percorso, corpo ? JSON.parse(JSON.stringify(corpo)) : {});
+    if (esito.modificato) {
+      try {
+        await Memoria.salva(archivioTelefono);
+      } catch (e) {
+        archivioTelefono = null; // alla prossima richiesta si riparte da quello salvato davvero
+        throw new Error('non riesco a scrivere nella memoria del telefono. Riprova; se continua, fai una copia di sicurezza.');
+      }
+    }
+    if (esito.codice >= 400) throw new Error(esito.corpo.errore || 'errore ' + esito.codice);
+    // Una copia, come se arrivasse da un server: la pagina non deve poter
+    // cambiare l'archivio senza passare dalle regole.
+    return JSON.parse(JSON.stringify(esito.corpo));
+  });
+  codaTelefono = lavoro.catch(() => {});
+  return lavoro;
+}
 
 async function api(metodo, percorso, corpo) {
+  if (SUL_TELEFONO) return chiamaTelefono(metodo, percorso, corpo);
   const risposta = await fetch(percorso, {
     method: metodo,
     headers: corpo ? { 'Content-Type': 'application/json' } : undefined,
@@ -391,7 +435,7 @@ function disegnaRicerca() {
 function disegna() {
   const cercando = stato.ricerca.trim().length > 0;
 
-  for (const vista of ['ricerca', 'incarichi', 'clienti', 'note']) {
+  for (const vista of ['ricerca', 'incarichi', 'clienti', 'note', 'copia']) {
     $('#vista-' + vista).hidden = cercando ? vista !== 'ricerca' : vista !== stato.vista;
   }
   document.querySelectorAll('.scheda').forEach((b) => {
@@ -414,10 +458,145 @@ function disegna() {
   const selLivello = document.querySelector('#form-incarico select[name=livello]');
   if (selLivello && !selLivello.options.length) selLivello.innerHTML = opzioniLivelli(LIVELLO_PREDEFINITO);
 
+  disegnaInstalla();
+  disegnaPromemoriaCopia();
+
   if (cercando) disegnaRicerca();
   else if (stato.vista === 'incarichi') disegnaIncarichi();
   else if (stato.vista === 'clienti') disegnaClienti();
+  else if (stato.vista === 'copia') disegnaCopia();
   else disegnaNote();
+}
+
+// ---------------------------------------------------------------- copia di sicurezza
+
+function giorniDa(isoCompleto) {
+  if (!isoCompleto) return null;
+  const d = new Date(isoCompleto);
+  return isNaN(d) ? null : Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function testoUltimaCopia() {
+  const g = giorniDa(stato.dati.impostazioni && stato.dati.impostazioni.ultimaCopia);
+  if (g === null) return 'Nessuna copia fatta finora.';
+  if (g === 0) return 'Ultima copia: oggi.';
+  if (g === 1) return 'Ultima copia: ieri.';
+  return 'Ultima copia: ' + g + ' giorni fa.';
+}
+
+function quantiElementi(d) {
+  return (d.clienti || []).length + (d.incarichi || []).length + (d.note || []).length;
+}
+
+function disegnaCopia() {
+  $('#dove-sono-i-dati').textContent = SUL_TELEFONO
+    ? 'Clienti, incarichi e note stanno solo in questo telefono: non vanno su internet e non passano da GitHub. '
+      + 'Proprio per questo, se cancelli l\'app dalla Home o cambi telefono, spariscono. Salva ogni tanto una copia: '
+      + 'si apre il foglio di condivisione, scegli "Salva su File" e poi iCloud Drive. '
+      + 'Per portare qui i dati del computer, salva una copia sul computer e caricala da qui.'
+    : 'I tuoi dati stanno nel file dati.json, nella cartella del Taccuino. Da qui puoi salvarne una copia, '
+      + 'per esempio per portarla sull\'iPhone, oppure caricarne una al posto di quello che c\'e\' ora.';
+  $('#ultima-copia').textContent = testoUltimaCopia();
+}
+
+/* Sul telefono i dati stanno solo li'. Se non c'e' mai stata una copia, o
+   l'ultima ha piu' di un mese, lo ricordo in cima alla pagina. */
+function disegnaPromemoriaCopia() {
+  const box = $('#promemoria-copia');
+  const g = giorniDa(stato.dati.impostazioni && stato.dati.impostazioni.ultimaCopia);
+  const serve = SUL_TELEFONO && stato.vista !== 'copia' && quantiElementi(stato.dati) > 0
+    && (g === null || g >= GIORNI_PROMEMORIA);
+  box.hidden = !serve;
+  if (!serve) return;
+  box.innerHTML = '<span>' + (g === null ? 'I tuoi dati stanno solo su questo telefono e non ne hai ancora una copia.'
+    : 'L\'ultima copia di sicurezza ha ' + g + ' giorni.') + '</span>'
+    + '<button class="collegamento" data-copia="salva">Salvala ora</button>';
+}
+
+/* Salva l'archivio in un file. Sull'iPhone si apre il foglio di
+   condivisione: "Salva su File" e scegli iCloud Drive. Sul computer il
+   file finisce fra i download. */
+async function salvaCopia() {
+  try {
+    const dati = await api('GET', '/api/dati');
+    const nome = 'taccuino-' + oggiIso() + '.json';
+    const file = new File([JSON.stringify(dati, null, 2)], nome, { type: 'application/json' });
+    let fatta = false;
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Taccuino: copia di sicurezza' });
+        fatta = true;
+      } catch (e) {
+        if (e.name === 'AbortError') return; // hai chiuso il foglio senza salvare: nessuna copia
+        fatta = scaricaFile(file);
+      }
+    } else {
+      fatta = scaricaFile(file);
+    }
+    if (fatta) {
+      const r = await api('POST', '/api/copia-fatta');
+      stato.dati.impostazioni = r.impostazioni;
+      avvisa('Copia salvata: ' + nome, true);
+      disegna();
+    }
+  } catch (e) { avvisa('Non sono riuscito a fare la copia: ' + e.message); }
+}
+
+function scaricaFile(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return true;
+}
+
+// Carica un file di copia e sostituisce l'archivio di questo dispositivo.
+async function caricaCopia(file) {
+  let letto;
+  try {
+    letto = JSON.parse(await file.text());
+  } catch (e) {
+    avvisa('Questo file non e\' una copia del Taccuino.');
+    return;
+  }
+  const conta = (k) => (Array.isArray(letto && letto[k]) ? letto[k].length : 0);
+  const qui = quantiElementi(stato.dati);
+  if (!confirm('Caricare la copia "' + file.name + '"?\n\nContiene ' + conta('clienti') + ' clienti, '
+    + conta('incarichi') + ' incarichi e ' + conta('note') + ' note.'
+    + (qui ? '\n\nQuello che c\'e\' ora su questo dispositivo (' + qui + ' elementi) verra\' sostituito.' : ''))) return;
+  try {
+    const r = await api('POST', '/api/importa', { dati: letto });
+    stato.dati = r.dati;
+    stato.vista = 'incarichi';
+    avvisa('Copia caricata.', true);
+    disegna();
+  } catch (e) { avvisa('Copia non caricata: ' + e.message + '. Non ho toccato niente.'); }
+}
+
+// ---------------------------------------------------------------- installazione sull'iPhone
+
+const APERTO_DALLA_HOME = window.navigator.standalone === true
+  || window.matchMedia('(display-mode: standalone)').matches;
+const E_UN_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+/* Aperto in Safari e non dalla Home: spiego come installarlo. E avviso che
+   quello che si scrive qui in Safari resta in Safari: l'app sulla Home ha
+   una memoria sua. */
+function disegnaInstalla() {
+  const box = $('#installa');
+  const mostra = SUL_TELEFONO && E_UN_IPHONE && !APERTO_DALLA_HOME;
+  box.hidden = !mostra;
+  if (!mostra || box.innerHTML) return;
+  box.innerHTML = '<span><strong>Installalo sulla Home:</strong> tocca il bottone Condividi '
+    + '<svg class="icona-condividi" viewBox="0 0 24 24" width="17" height="17" aria-label="Condividi">'
+    + '<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5v10h14V11h-1" fill="none" stroke="currentColor" stroke-width="2" '
+    + 'stroke-linecap="round" stroke-linejoin="round"/></svg>, poi <strong>Aggiungi alla schermata Home</strong>. '
+    + 'Poi aprilo da li\': quello che scrivi qui in Safari non passa all\'app installata.</span>';
 }
 
 // ---------------------------------------------------------------- eventi
@@ -427,6 +606,7 @@ document.querySelectorAll('.scheda').forEach((bottone) => {
     stato.vista = bottone.dataset.vista;
     stato.modifica = null;
     disegna();
+    window.scrollTo(0, 0);
   });
 });
 
@@ -519,6 +699,7 @@ document.querySelector('#form-nota textarea').addEventListener('keydown', (e) =>
 
 // Un solo ascoltatore per tutti i bottoni dentro le liste.
 document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-copia]')) { salvaCopia(); return; }
   const bottone = e.target.closest('button[data-azione]');
   if (!bottone) return;
   const azione = bottone.dataset.azione;
@@ -579,11 +760,40 @@ document.addEventListener('change', (e) => {
 
 // ---------------------------------------------------------------- avvio
 
+$('#salva-copia').addEventListener('click', salvaCopia);
+$('#carica-copia').addEventListener('click', () => $('#file-copia').click());
+$('#file-copia').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (file) caricaCopia(file);
+});
+
+// Sul telefono non c'e' il tasto Cmd: il suggerimento non serve.
+if (SUL_TELEFONO) document.querySelector('#form-nota textarea').placeholder = 'Scrivi una nota…';
+
+/* Il livello di urgenza dipende dal giorno di oggi. Sul telefono l'app
+   resta aperta in sottofondo per giorni: quando torna in primo piano
+   ridisegno, cosi' gli incarichi salgono di livello anche senza riaprirla.
+   Sul computer ricarico anche i dati, nel caso siano cambiati altrove. */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || stato.modifica) return;
+  carica().then(disegna).catch(() => {});
+});
+
 carica()
   .then(disegna)
   .catch((err) => {
-    document.querySelector('main').innerHTML =
-      '<div class="vuoto">Non riesco a contattare il programma.<br><br>'
-      + 'Controlla che la finestra del Terminale sia ancora aperta,<br>'
-      + 'poi ricarica questa pagina.<br><br><small>' + esc(err.message) + '</small></div>';
+    document.querySelector('main').innerHTML = SUL_TELEFONO
+      ? '<div class="vuoto">Non riesco ad aprire la memoria del telefono.<br><br>'
+        + 'Chiudi l\'app e riaprila. Se continua, controlla che in Impostazioni → Safari '
+        + 'non sia attiva la navigazione privata.<br><br><small>' + esc(err.message) + '</small></div>'
+      : '<div class="vuoto">Non riesco a contattare il programma.<br><br>'
+        + 'Controlla che la finestra del Terminale sia ancora aperta,<br>'
+        + 'poi ricarica questa pagina.<br><br><small>' + esc(err.message) + '</small></div>';
   });
+
+if (SUL_TELEFONO) {
+  Memoria.rendiPersistente();
+  // Il "service worker" tiene una copia della pagina, cosi' si apre anche senza rete.
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+}

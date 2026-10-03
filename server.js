@@ -12,31 +12,18 @@ const FILE_DATI = path.join(CARTELLA, 'dati.json');
 const FILE_BACKUP = path.join(CARTELLA, 'dati.backup.json');
 const PUBBLICA = path.join(CARTELLA, 'public');
 
-const COLLEZIONI = ['clienti', 'incarichi', 'note'];
-const VUOTO = { clienti: [], incarichi: [], note: [] };
+// Le regole su come cambiano i dati stanno in public/archivio.js, le stesse
+// che usa la pagina quando gira da sola sull'iPhone. Qui resta solo il
+// lavoro del computer: leggere e scrivere dati.json e rispondere al browser.
+const Archivio = require('./public/archivio.js');
 
 // ---------- lettura e scrittura dei dati ----------
 
 function leggiDati() {
   try {
-    const testo = fs.readFileSync(FILE_DATI, 'utf8');
-    const dati = JSON.parse(testo);
-    for (const c of COLLEZIONI) if (!Array.isArray(dati[c])) dati[c] = [];
-
-    // Gli incarichi creati con la versione 0.0 non hanno livello ne' data di
-    // inizio. Glieli do qui, cosi' il resto del programma non deve mai
-    // preoccuparsi di campi mancanti.
-    for (const inc of dati.incarichi) {
-      if (!LIVELLI.includes(inc.livello)) inc.livello = LIVELLO_PREDEFINITO;
-      if (!E_UNA_DATA(inc.dataInizio)) {
-        inc.dataInizio = E_UNA_DATA((inc.creato || '').slice(0, 10))
-          ? inc.creato.slice(0, 10) : oggiIso();
-      }
-    }
-
-    return dati;
+    return Archivio.sistema(JSON.parse(fs.readFileSync(FILE_DATI, 'utf8')));
   } catch (err) {
-    if (err.code === 'ENOENT') return JSON.parse(JSON.stringify(VUOTO));
+    if (err.code === 'ENOENT') return Archivio.vuoto();
     // Il file esiste ma e' illeggibile: non lo tocchiamo, meglio fermarsi.
     console.error('\nERRORE: dati.json non e\' leggibile.', err.message);
     console.error('Il file non verra\' sovrascritto. Controllalo prima di continuare.\n');
@@ -55,70 +42,7 @@ function scriviDati(dati) {
   fs.renameSync(temporaneo, FILE_DATI);
 }
 
-function nuovoId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-// ---------- validazione ----------
-
-const STATI = ['da fare', 'in corso', 'fatto'];
-
-// Le chiavi dei livelli di urgenza. La logica di come salgono sta in
-// public/livelli.js: qui serve solo sapere quali valori sono accettabili.
-const LIVELLI = ['aspettare', 'pianificare', 'presto', 'subito'];
-const LIVELLO_PREDEFINITO = 'pianificare';
-
-const E_UNA_DATA = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
-
-function oggiIso() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
-         + '-' + String(d.getDate()).padStart(2, '0');
-}
-
-function testo(valore, max) {
-  if (typeof valore !== 'string') return '';
-  return valore.trim().slice(0, max);
-}
-
-function normalizza(tipo, corpo, precedente) {
-  const vecchio = precedente || {};
-  if (tipo === 'clienti') {
-    return {
-      id: vecchio.id || nuovoId(),
-      nome: testo(corpo.nome, 200),
-      contatto: testo(corpo.contatto, 300),
-      note: testo(corpo.note, 5000),
-      creato: vecchio.creato || new Date().toISOString(),
-    };
-  }
-  if (tipo === 'incarichi') {
-    const stato = STATI.includes(corpo.stato) ? corpo.stato : (vecchio.stato || 'da fare');
-    return {
-      id: vecchio.id || nuovoId(),
-      titolo: testo(corpo.titolo, 300),
-      clienteId: testo(corpo.clienteId, 100),
-      stato: stato,
-      livello: LIVELLI.includes(corpo.livello) ? corpo.livello
-               : (vecchio.livello || LIVELLO_PREDEFINITO),
-      dataInizio: E_UNA_DATA(corpo.dataInizio) ? corpo.dataInizio
-                  : (vecchio.dataInizio || oggiIso()),
-      scadenza: E_UNA_DATA(corpo.scadenza) ? corpo.scadenza : '',
-      note: testo(corpo.note, 10000),
-      creato: vecchio.creato || new Date().toISOString(),
-      aggiornato: new Date().toISOString(),
-    };
-  }
-  // note
-  return {
-    id: vecchio.id || nuovoId(),
-    testo: testo(corpo.testo, 50000),
-    clienteId: testo(corpo.clienteId, 100),
-    incaricoId: testo(corpo.incaricoId, 100),
-    creato: vecchio.creato || new Date().toISOString(),
-    aggiornato: new Date().toISOString(),
-  };
-}
+class CorpoNonValido extends Error {}
 
 // ---------- utilita' http ----------
 
@@ -137,12 +61,12 @@ function leggiCorpo(req) {
     let troppo = false;
     req.on('data', (p) => {
       pezzi += p;
-      if (pezzi.length > 2_000_000) { troppo = true; req.destroy(); }
+      if (pezzi.length > 20_000_000) { troppo = true; req.destroy(); }
     });
     req.on('end', () => {
-      if (troppo) return rifiuta(new Error('corpo troppo grande'));
+      if (troppo) return rifiuta(new CorpoNonValido('Troppo grande'));
       if (!pezzi) return risolvi({});
-      try { risolvi(JSON.parse(pezzi)); } catch (e) { rifiuta(new Error('JSON non valido')); }
+      try { risolvi(JSON.parse(pezzi)); } catch (e) { rifiuta(new CorpoNonValido('JSON non valido')); }
     });
     req.on('error', rifiuta);
   });
@@ -155,6 +79,8 @@ const TIPI_MIME = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json',
 };
 
 function serviStatico(res, percorsoRichiesto) {
@@ -180,67 +106,13 @@ const server = http.createServer(async (req, res) => {
   if (!percorso.startsWith('/api/')) return serviStatico(res, percorso);
 
   try {
-    // /api/dati -> tutto l'archivio
-    if (percorso === '/api/dati' && req.method === 'GET') {
-      return rispondiJson(res, 200, leggiDati());
-    }
-
-    const pezzi = percorso.split('/').filter(Boolean); // ['api', tipo, id?]
-    const tipo = pezzi[1];
-    const id = pezzi[2];
-
-    if (!COLLEZIONI.includes(tipo)) {
-      return rispondiJson(res, 404, { errore: 'Sezione sconosciuta' });
-    }
-
+    const corpo = req.method === 'GET' || req.method === 'DELETE' ? {} : await leggiCorpo(req);
     const dati = leggiDati();
-
-    if (req.method === 'POST' && !id) {
-      const corpo = await leggiCorpo(req);
-      const elemento = normalizza(tipo, corpo, null);
-      dati[tipo].unshift(elemento);
-      scriviDati(dati);
-      return rispondiJson(res, 201, elemento);
-    }
-
-    if (req.method === 'PUT' && id) {
-      const indice = dati[tipo].findIndex((e) => e.id === id);
-      if (indice === -1) return rispondiJson(res, 404, { errore: 'Non trovato' });
-      const corpo = await leggiCorpo(req);
-
-      // Se sposti il livello a mano e non tocchi la data di inizio, il
-      // conteggio dei giorni riparte da oggi: e' il modo per rimandare
-      // davvero qualcosa, invece di vederla risalire subito.
-      if (tipo === 'incarichi' && corpo.livello
-          && corpo.livello !== dati[tipo][indice].livello
-          && corpo.dataInizio === undefined) {
-        corpo.dataInizio = oggiIso();
-      }
-
-      const unito = Object.assign({}, dati[tipo][indice], corpo);
-      dati[tipo][indice] = normalizza(tipo, unito, dati[tipo][indice]);
-      scriviDati(dati);
-      return rispondiJson(res, 200, dati[tipo][indice]);
-    }
-
-    if (req.method === 'DELETE' && id) {
-      const indice = dati[tipo].findIndex((e) => e.id === id);
-      if (indice === -1) return rispondiJson(res, 404, { errore: 'Non trovato' });
-      dati[tipo].splice(indice, 1);
-      // Se cancello un cliente, le sue note e i suoi incarichi restano ma perdono il collegamento.
-      if (tipo === 'clienti') {
-        for (const i of dati.incarichi) if (i.clienteId === id) i.clienteId = '';
-        for (const n of dati.note) if (n.clienteId === id) n.clienteId = '';
-      }
-      if (tipo === 'incarichi') {
-        for (const n of dati.note) if (n.incaricoId === id) n.incaricoId = '';
-      }
-      scriviDati(dati);
-      return rispondiJson(res, 200, { ok: true });
-    }
-
-    return rispondiJson(res, 405, { errore: 'Metodo non ammesso' });
+    const esito = Archivio.rispondi(dati, req.method, percorso, corpo);
+    if (esito.modificato) scriviDati(dati);
+    return rispondiJson(res, esito.codice, esito.corpo);
   } catch (err) {
+    if (err instanceof CorpoNonValido) return rispondiJson(res, 400, { errore: err.message });
     console.error('Errore:', err.message);
     return rispondiJson(res, 500, { errore: err.message });
   }
@@ -278,7 +150,7 @@ function apriBrowser(indirizzo) {
 
 // Ascolta solo su 127.0.0.1: raggiungibile da questo computer, da nessun altro.
 server.listen(PORTA, '127.0.0.1', () => {
-  if (!fs.existsSync(FILE_DATI)) scriviDati(JSON.parse(JSON.stringify(VUOTO)));
+  if (!fs.existsSync(FILE_DATI)) scriviDati(Archivio.vuoto());
   console.log('');
   const indirizzo = 'http://localhost:' + PORTA;
   console.log('  Taccuino e\' attivo.');

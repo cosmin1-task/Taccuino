@@ -2,8 +2,18 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Taccuino</title>
+<!-- Per l'iPhone: icona, nome e aspetto quando e' aggiunto alla schermata Home -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icone/icona-192.png">
+<link rel="apple-touch-icon" href="icone/icona-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Taccuino">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="stile.css">
 </head>
 <body>
@@ -21,10 +31,16 @@
     <button class="scheda attiva" data-vista="incarichi" role="tab">Incarichi <span class="conteggio" id="conteggio-incarichi"></span></button>
     <button class="scheda" data-vista="clienti" role="tab">Clienti <span class="conteggio" id="conteggio-clienti"></span></button>
     <button class="scheda" data-vista="note" role="tab">Note <span class="conteggio" id="conteggio-note"></span></button>
+    <button class="scheda" data-vista="copia" role="tab"><span class="lungo">Copia di sicurezza</span><span class="corto">Copia</span></button>
   </nav>
 </header>
 
 <main>
+
+  <!-- Sull'iPhone, aperto in Safari: come installarlo -->
+  <div id="installa" class="riquadro suggerimento" hidden></div>
+  <!-- Sull'iPhone: promemoria se manca una copia di sicurezza recente -->
+  <div id="promemoria-copia" class="promemoria-copia" hidden></div>
 
   <!-- RISULTATI DI RICERCA -->
   <section id="vista-ricerca" class="vista" hidden>
@@ -78,11 +94,27 @@
     <div id="elenco-note"></div>
   </section>
 
+  <!-- COPIA DI SICUREZZA -->
+  <section id="vista-copia" class="vista" hidden>
+    <div class="riquadro pannello">
+      <h2 class="titolo-pannello">Copia di sicurezza</h2>
+      <p id="dove-sono-i-dati" class="spiegazione"></p>
+      <div class="riga-nota">
+        <button type="button" id="salva-copia" class="bottone-primario bottone-in-linea">Salva una copia</button>
+        <button type="button" id="carica-copia" class="bottone-leggero">Carica una copia</button>
+        <input type="file" id="file-copia" accept=".json,application/json" hidden>
+      </div>
+      <p id="ultima-copia" class="spiegazione piccola"></p>
+    </div>
+  </section>
+
 </main>
 
 <div id="avviso" class="avviso" hidden></div>
 
 <script src="livelli.js"></script>
+<script src="archivio.js"></script>
+<script src="memoria.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
